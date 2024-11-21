@@ -1,5 +1,5 @@
 use crate::message::ServerMessage;
-use crate::socket_server::MessageServer;
+use crate::servers::MessageServer;
 use crate::utils::new_arcmut;
 use crate::ChatRoom;
 use crate::Message;
@@ -60,20 +60,6 @@ impl MessagesDatabase {
       }
 }
 
-
-/* struct ChatServerEvents {
-      senders: ArcMut<ChatServerSenders>,
-      receivers: ChatServerReceivers,
-}
-
-impl ChatServerEvents {
-      pub fn new(senders: ChatServerSenders, receivers: ChatServerReceivers) -> Self {
-            Self {
-                  senders: new_arcmut(senders),
-                  receivers: receivers,
-            }
-      }
-} */
 
 pub struct ChatServer
 {
