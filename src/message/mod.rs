@@ -63,6 +63,17 @@ impl Message
 }
 
 
+impl Into<String> for Message {
+    fn into(self) -> String {
+        let result = serde_json::to_string(&self);
+        match result {
+            Ok(message) => message,
+            Err(_) => String::from(""),
+        }
+    }
+}
+
+
 impl ServerMessage {
     pub fn get_content(&self) -> String {
         self.content.clone()

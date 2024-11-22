@@ -68,18 +68,19 @@ pub struct ChatServer
       messages_db: MessagesDatabase,
       message_server: Arc<Mutex<MessageServer>>,
       message_server_channel: (Tx<crate::Message>, Rx<ServerMessage>),
+      loadbalancer_channel: (Tx<Message>, Rx<Message>),
 }
 
 impl ChatServer {
 
-      pub fn new(id: String, chat_rooms_db: ChatRoomsDatabase, messages_db: MessagesDatabase) -> Self {
+      pub fn new(id: String, chat_rooms_db: ChatRoomsDatabase, messages_db: MessagesDatabase, loadbalancer_channel: (Tx<Message>, Rx<Message>)) -> Self {
             let (
-                  ms_cs_tx,
-                  cs_ms_rx,
+                  _ms_cs_tx,
+                  _cs_ms_rx,
                   cs_ms_tx,
                   ms_cs_rx,
             ) = create_message_channels();
-            let message_server = MessageServer::new(String::from("1234"), (ms_cs_tx, cs_ms_rx));
+            let message_server = MessageServer::new(String::from("1234"));
 
             Self {
                   id,
@@ -87,6 +88,7 @@ impl ChatServer {
                   messages_db,
                   message_server: new_arcmut(message_server),
                   message_server_channel: (cs_ms_tx, ms_cs_rx),
+                  loadbalancer_channel,
             }
       }
 
@@ -113,6 +115,7 @@ impl ChatServer {
             let room_id = message.get_room_id();
 
             if let Some(room) = self.chat_rooms_db.find_room_by_id(room_id) {
+                  let _ = self.loadbalancer_channel.0.send(message.clone());
                   room.send_message(message.clone());
                   self.store_message_in_history(message.clone());
                   Ok(())

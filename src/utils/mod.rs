@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+pub mod thread_pool;
+pub mod channels;
 
 pub type ArcMut<T> = Arc<Mutex<T>>;
 

@@ -1,10 +1,12 @@
+use simple_chat::servers::MessageServer;
 //use simple_chat::SocketServer;
 //use std::net::SocketAddr;
-use simple_chat::ChatRoom;
+//use simple_chat::ChatRoom;
 //use simple_chat::socket_server::SocketServer;
-use simple_chat::ChatServer;
-use simple_chat::chatserver::ChatRoomsDatabase;
-use simple_chat::chatserver::MessagesDatabase;
+//use simple_chat::ChatServer;
+//use simple_chat::chatserver::ChatRoomsDatabase;
+//use simple_chat::chatserver::MessagesDatabase;
+//use simple_chat::LoadBalancer;
 
 //static PORT: i32 = 3000;
 
@@ -13,15 +15,28 @@ async fn main()
 {
     simple_logger::SimpleLogger::new().env().init().unwrap();
 
-    let chat_room1 = ChatRoom::new(String::from("1234"));
+    /* let chat_room1 = ChatRoom::new(String::from("1234"));
     let mut rooms_db = ChatRoomsDatabase::new();
     rooms_db.add_chat_room(chat_room1);
     
     let messages_db = MessagesDatabase::new();
 
-    let mut chat_server = ChatServer::new(String::from("1234"), rooms_db, messages_db);
+    
+    let (cs_tx,lb_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (lb_tx,cs_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    let mut chat_server = ChatServer::new(String::from("1234"), rooms_db, messages_db, (cs_tx, cs_rx));
+
+    let mut loadbalancer = LoadBalancer::new();
+    loadbalancer.add_server(&chat_server, (lb_tx, lb_rx)).await;
 
     chat_server.init().await;
+    loop {
+
+    } */
+
+    let mut message_server = MessageServer::new(String::from("12345"));
+    let _ = message_server.init().await;
 }
 
 
