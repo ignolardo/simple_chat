@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use futures::SinkExt;
+use futures::StreamExt;
+
 use crate::utils::new_arcmut;
 use crate::utils::ArcMut;
 use crate::ChatServer;
@@ -25,44 +28,15 @@ impl<'a> LoadBalancer<'a> {
       }
 
       pub async fn init(&mut self) {
-     /*        let receivers_iter = self.chat_server_channels
-                  .clone()
-                  .lock().await
-                  .iter_mut()
-                  .map(|(_,(_,r))| r);
-            
-            for receiver in receivers_iter {
-                  let channels = self.chat_server_channels.clone();
-                  let users_table = self.users_table.clone();
-                  tokio::spawn(async move {
-                        loop {
-                              tokio::select! {
-                                    Some(msg) = receiver.recv() => {
-                                          let server_id = users_table.get(&msg.get_sender_id());
-                                          if let None = server_id {
-                                                continue;
-                                          };
-                                          let server_id = server_id.unwrap();
-                                          
-                                          let channels = channels.lock().await;
-                                          let channel = channels.get(server_id);
-                                          if let None = channel {
-                                                continue;
-                                          }
-                                          let channel = channel.unwrap();
-                                          let _ = channel.0.send(msg);
-                                    }
-                              }
-                        }
-                  });
-            } */
 
+            let _ = rocket::build()
+                  .mount("/", routes![message_channel])
+                  //.manage(state)
+                  .launch()
+                  .await;
       }
 
       fn send_to_server(server_id: String, message: Message) -> Result<(),()> {
-
-
-
             Ok(())
       }
 
@@ -74,4 +48,26 @@ impl<'a> LoadBalancer<'a> {
       pub fn get_server(&mut self) -> Option<&mut &'a ChatServer> {
             self.chat_servers.values_mut().next()
       }
+}
+
+
+#[get("/")]
+async fn message_channel(
+      ws: ws::WebSocket
+) -> ws::Channel<'static>
+{
+      ws.channel(move |mut stream| Box::pin(async move {
+            loop {
+                  tokio::select! {
+                        result = stream.next() => match result {
+                              Some(Ok(ws::Message::Close(_))) => break,
+                              Some(Ok(ws::Message::Text(msg))) => {let _ = stream.send(ws::Message::text(msg));},
+                              Some(Err(_)) => continue,
+                              None => break,
+                              _ => (),
+                        }
+                  }
+            }
+            Ok(())
+      }))
 }

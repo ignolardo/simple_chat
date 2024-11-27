@@ -5,6 +5,8 @@ use crate::ChatRoom;
 use crate::Message;
 use crate::User;
 use std::collections::HashMap;
+use std::net::Ipv4Addr;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
@@ -80,7 +82,7 @@ impl ChatServer {
                   cs_ms_tx,
                   ms_cs_rx,
             ) = create_message_channels();
-            let message_server = MessageServer::new(String::from("1234"));
+            let message_server = MessageServer::new(String::from("1234"), SocketAddr::new(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 8000));
 
             Self {
                   id,

@@ -75,6 +75,14 @@ impl Into<String> for Message {
 
 
 impl ServerMessage {
+    pub fn get_sender_id(&self) -> String {
+        self.sender_id.clone()
+    }
+
+    pub fn get_room_id(&self) -> String {
+        self.room_id.clone()
+    }
+
     pub fn get_content(&self) -> String {
         self.content.clone()
     }
