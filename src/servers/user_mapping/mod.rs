@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::env;
 use std::net::SocketAddr;
+use rocket::response::status::BadRequest;
 use rocket::response::status::Custom;
 use rocket::Build;
 use rocket::Rocket;
@@ -7,16 +9,24 @@ use serde::Serialize;
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
+use crate::utils;
 use crate::utils::addr;
 
-pub struct UserMappingServer;
+pub struct UserMappingServer {
+      id: String,
+      addr: SocketAddr,
+}
 
 impl UserMappingServer {
-      pub fn new() -> Self {
-            Self
+      pub fn new(id: String, addr: SocketAddr) -> Self {
+            Self {
+                  id,
+                  addr,
+            }
       }
 
       pub async fn init(&self) {
+            env::set_var("ROCKET_PORT", self.addr.port().to_string());
             let _ = rocket::build()
                   .mount("/", routes![get_user_server_addr, set_user_server_addr])
                   .manage(Mutex::new(HashMap::<String, SocketAddr>::new()))
@@ -44,10 +54,16 @@ async fn get_user_server_addr(users: &rocket::State<Mutex<HashMap<String, Socket
 async fn set_user_server_addr(
       users: &rocket::State<Mutex<HashMap<String, SocketAddr>>>, 
       id: &str,
-      addr: SocketAddr,
+      addr: &str,
 )
 -> Result<rocket::response::status::Custom<String>,rocket::response::status::BadRequest<String>>
-{      
+{     
+      let result = utils::string_to_addr(addr);
+      if result.is_err() {
+            return Err(BadRequest(String::from("Address not valid")));
+      }
+      let addr = result.unwrap();
+
       let mut users = users.lock().await;
       users.insert(String::from(id), addr);
 

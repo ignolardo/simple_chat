@@ -1,3 +1,4 @@
+use std::env;
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
@@ -8,11 +9,13 @@ use reqwest::StatusCode;
 use rocket::routes;
 use tokio::sync::Mutex;
 use ws::stream::DuplexStream;
-use crate::message::ServerMessage;
-use crate::utils::channels::DoubleChannelPool;
-use crate::utils::channels::Stream;
-use crate::Message;
 use tokio::sync::mpsc::Sender;
+use crate::message::ServerMessage;
+use crate::utils::addr_to_url_safe;
+use crate::utils::channels::DoubleChannelPool;
+use crate::utils::channels::DoubleChannelPoolStream;
+use crate::utils::channels::EventType;
+use crate::Message;
 
 
 static USER_MAPPING_SERVER_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 3000);
@@ -37,9 +40,10 @@ impl MessageServer
 
             let addr = self.addr.clone();
 
-            let (channel_pool,mut msg_receiver,mut conn_receiver) = DoubleChannelPool::<Message,ServerMessage,String>::new();
+            let (channel_pool,mut receiver) = DoubleChannelPool::<Message,ServerMessage,String>::new(10);
 
             let thread = tokio::spawn(async move {
+                  env::set_var("ROCKET_PORT", addr.port().to_string());
                   let _ = rocket::build()
                         .mount("/", routes![message_channel])
                         .manage(Mutex::new(channel_pool))
@@ -49,14 +53,11 @@ impl MessageServer
 
             loop {
                   tokio::select! {
-                        result = msg_receiver.recv() => match result {
-                              Some(msg) => println!("{} >\t{}", msg.get_sender_id(), msg.get_content()),
+                        result = receiver.recv() => match result {
+                              Some(EventType::Connection(id,sender)) => {self.register_user(id, sender).await},
+                              Some(EventType::Message(msg)) => println!("{} >\t{}", msg.get_sender_id(), msg.get_content()),
                               None => break,
                         },
-                        result = conn_receiver.recv() => match result {
-                              Some((id,sender)) => {self.register_user(id, sender).await;},
-                              None => break,
-                        }
                   }
             }
 
@@ -77,7 +78,9 @@ impl MessageServer
 
             // Register connection in user mapping service
             let client = reqwest::Client::new();
-            let result = client.put(format!("http://{}/{}/{}", USER_MAPPING_SERVER_ADDR, user_id, self.addr))
+
+            let url = format!("http://{}/{}/{}", USER_MAPPING_SERVER_ADDR, user_id, addr_to_url_safe(self.addr.clone()));
+            let result = client.put(url.as_str())
                   .send()
                   .await;
             if result.is_err() {
@@ -86,7 +89,7 @@ impl MessageServer
             }
             let status = result.unwrap().status();
             if status != StatusCode::OK {
-                  log::info!("Registering user failed");
+                  log::info!("Registering user failed. {}", status.to_string());
                   return;
             }
             log::info!("User registered succesfully");
@@ -122,7 +125,7 @@ async fn message_channel(
 }
 
 async fn handle_connection(
-      mut channel_stream: Stream<ServerMessage,Message>,
+      mut channel_stream: DoubleChannelPoolStream<ServerMessage,Message,String>,
       _remote_addr: SocketAddr,
       user_id: String,
       mut stream: DuplexStream,
@@ -140,7 +143,7 @@ async fn handle_connection(
 
                   result = &mut stream.next() => match result {
                         Some(Ok(ws::Message::Close(_))) => break,
-                        Some(Ok(ws::Message::Text(msg))) => { let _ = process_user_message(msg, &mut stream, channel_stream.0.clone()).await; },
+                        Some(Ok(ws::Message::Text(msg))) => { let _ = process_user_message(msg, &mut stream, &channel_stream).await; },
                         Some(Err(_)) => { let _ = stream.send(ws::Message::text("Error")).await; },
                         None => return Err(ws::result::Error::ConnectionClosed),
                         _ => (),
@@ -154,7 +157,12 @@ async fn handle_connection(
 }
 
 
-async fn process_user_message(msg: String, stream: &mut DuplexStream, sender: Sender<ServerMessage>) -> Result<(),()> {
+async fn process_user_message(
+      msg: String, 
+      stream: &mut DuplexStream, 
+      channel_stream: &DoubleChannelPoolStream<ServerMessage, Message, String>
+) -> Result<(),()> 
+{
       
       log::info!("New message request");
       
@@ -167,7 +175,7 @@ async fn process_user_message(msg: String, stream: &mut DuplexStream, sender: Se
 
       let message = result.unwrap();
 
-      let result = sender.send(message).await;
+      let result = channel_stream.send(message).await;
 
       if result.is_err() {
             log::error!("Something gone wrong");
